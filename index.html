@@ -1,262 +1,554 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>WebContainer Terminal</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Web IDE</title>
+
+  <link
+    rel="stylesheet"
+    href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/css/xterm.css"
+  >
 
   <style>
-    *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;background:#050505;color:#ddd;font-family:Consolas,monospace;overflow:hidden}
-    #app{height:100%;display:flex;flex-direction:column}
-
-    #commands{
-      height:48px;
-      flex-shrink:0;
-      display:flex;
-      align-items:center;
-      gap:8px;
-      padding:7px 10px;
-      background:#111;
-      border-bottom:1px solid #292929;
-      overflow-x:auto;
-      white-space:nowrap;
+    * {
+      box-sizing: border-box;
     }
 
-    #commands::-webkit-scrollbar{height:5px}
-    #commands::-webkit-scrollbar-thumb{background:#444;border-radius:10px}
-
-    button{
-      flex-shrink:0;
-      border:1px solid #333;
-      background:#191919;
-      color:#ddd;
-      padding:7px 11px;
-      border-radius:5px;
-      font:12px Consolas,monospace;
-      cursor:pointer;
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d1117;
+      color: #fff;
+      font-family: Arial, sans-serif;
     }
 
-    button:hover{background:#292929;color:#fff}
-    button:disabled{opacity:.4;cursor:not-allowed}
-
-    #terminal{
-      flex:1;
-      overflow:auto;
-      padding:14px;
-      white-space:pre-wrap;
-      word-break:break-word;
-      font-size:14px;
-      line-height:1.5;
+    .app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
     }
 
-    .line{margin:2px 0}
-    .cmd{color:#8ab4f8}
-    .err{color:#ff7070}
-    .info{color:#aaa}
+    /* TOP BAR */
 
-    #inputRow{
-      flex-shrink:0;
-      display:flex;
-      align-items:center;
-      border-top:1px solid #292929;
-      background:#0b0b0b;
-      padding:10px 12px;
+    .topbar {
+      height: 54px;
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      overflow-x: auto;
+      white-space: nowrap;
     }
 
-    #prompt{color:#6ee76e;margin-right:8px}
-    #input{
-      flex:1;
-      border:0;
-      outline:0;
-      background:transparent;
-      color:#fff;
-      font:14px Consolas,monospace;
+    .topbar::-webkit-scrollbar {
+      height: 5px;
+    }
+
+    .topbar::-webkit-scrollbar-thumb {
+      background: #444;
+      border-radius: 10px;
+    }
+
+    .brand {
+      font-weight: bold;
+      margin-right: 8px;
+      color: #58a6ff;
+      flex-shrink: 0;
+    }
+
+    button {
+      border: 1px solid #30363d;
+      background: #21262d;
+      color: #ddd;
+      padding: 7px 11px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+
+    button:hover {
+      background: #30363d;
+    }
+
+    .run {
+      background: #238636;
+      border-color: #238636;
+      color: white;
+    }
+
+    .stop {
+      background: #da3633;
+      border-color: #da3633;
+      color: white;
+    }
+
+    /* MAIN */
+
+    .main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .terminal-title {
+      height: 34px;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      color: #aaa;
+      font-size: 13px;
+    }
+
+    #terminal {
+      flex: 1;
+      min-height: 0;
+      padding: 8px;
+      background: #0d1117;
+    }
+
+    .preview {
+      height: 40%;
+      min-height: 150px;
+      border-top: 1px solid #30363d;
+      background: white;
+      display: none;
+      flex-direction: column;
+    }
+
+    .preview-head {
+      height: 35px;
+      min-height: 35px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      background: #161b22;
+      color: #ccc;
+      font-size: 13px;
+    }
+
+    #previewFrame {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      background: white;
+    }
+
+    .status {
+      color: #8b949e;
+      margin-left: auto;
+      padding-left: 10px;
+      font-size: 12px;
     }
   </style>
 </head>
 
 <body>
-<div id="app">
 
-  <div id="commands"></div>
+<div class="app">
 
-  <div id="terminal"></div>
+  <div class="topbar">
 
-  <div id="inputRow">
-    <span id="prompt">$</span>
-    <input id="input" autocomplete="off" spellcheck="false"
-           placeholder="Type a command..." />
+    <div class="brand">WEB IDE</div>
+
+    <button onclick="sendCommand('npm create vite@latest')">
+      npm create vite
+    </button>
+
+    <button onclick="sendCommand('npm install')">
+      npm install
+    </button>
+
+    <button onclick="sendCommand('npm install express')">
+      Express
+    </button>
+
+    <button onclick="sendCommand('npm install mongoose')">
+      Mongoose
+    </button>
+
+    <button onclick="sendCommand('npm install cors')">
+      CORS
+    </button>
+
+    <button onclick="sendCommand('npm install dotenv')">
+      dotenv
+    </button>
+
+    <button onclick="sendCommand('npm install react react-dom')">
+      React
+    </button>
+
+    <button onclick="sendCommand('npm install -D vite')">
+      Vite
+    </button>
+
+    <button onclick="sendCommand('npm install tailwindcss @tailwindcss/vite')">
+      Tailwind
+    </button>
+
+    <button onclick="sendCommand('npm list')">
+      npm list
+    </button>
+
+    <button onclick="sendCommand('node -v')">
+      node -v
+    </button>
+
+    <button onclick="sendCommand('npm -v')">
+      npm -v
+    </button>
+
+    <button onclick="sendCommand('pwd')">
+      pwd
+    </button>
+
+    <button onclick="sendCommand('ls')">
+      ls
+    </button>
+
+    <button class="run" onclick="sendCommand('npm run dev')">
+      ▶ npm run dev
+    </button>
+
+    <button class="stop" onclick="sendCtrlC()">
+      ■ Stop
+    </button>
+
+    <button onclick="togglePreview()">
+      Preview
+    </button>
+
+    <div class="status" id="status">
+      Starting...
+    </div>
+
+  </div>
+
+  <div class="main">
+
+    <div class="terminal-title">
+      Terminal — WebContainer
+    </div>
+
+    <div id="terminal"></div>
+
+    <div class="preview" id="preview">
+      <div class="preview-head">
+        Live Preview
+      </div>
+
+      <iframe
+        id="previewFrame"
+        allow="cross-origin-isolated"
+      ></iframe>
+    </div>
+
   </div>
 
 </div>
 
+
 <script type="module">
-  import { WebContainer } from "https://esm.sh/@webcontainer/api";
 
-  const terminal = document.getElementById("terminal");
-  const commands = document.getElementById("commands");
-  const input = document.getElementById("input");
+  import { WebContainer }
+    from "https://unpkg.com/@webcontainer/api@1.6.4/dist/index.js";
 
-  let container = null;
-  let currentProcess = null;
+  import { Terminal }
+    from "https://cdn.jsdelivr.net/npm/@xterm/xterm@5.3.0/+esm";
 
-  /*
-    These are real commands.
-    Clicking one sends it to the actual WebContainer shell.
-  */
-  const commandList = [
-    "pwd",
-    "ls",
-    "ls -la",
-    "node -v",
-    "npm -v",
-    "npm init -y",
-    "npm install",
-    "npm install express",
-    "npm install mongoose",
-    "npm install cors",
-    "npm install dotenv",
-    "npm install react react-dom",
-    "npm install -D vite",
-    "npm install tailwindcss @tailwindcss/vite",
-    "npm list",
-    "npm create vite@latest my-app -- --template react",
-    "cd my-app",
-    "npm install",
-    "npm run dev"
-  ];
 
-  function print(text="", type="") {
-    const div = document.createElement("div");
-    div.className = "line " + type;
-    div.textContent = text;
-    terminal.appendChild(div);
-    terminal.scrollTop = terminal.scrollHeight;
-  }
+  let webcontainer;
+  let shellProcess;
+  let shellInput;
 
-  function printCommand(command) {
-    print("$ " + command, "cmd");
-  }
+  const terminalElement =
+    document.getElementById("terminal");
 
-  async function runCommand(command) {
-    if (!container) {
-      print("WebContainer is not ready.", "err");
-      return;
-    }
+  const status =
+    document.getElementById("status");
 
-    if (!command.trim()) return;
+  const preview =
+    document.getElementById("preview");
 
-    printCommand(command);
+  const previewFrame =
+    document.getElementById("previewFrame");
 
-    /*
-      WebContainer's shell executes the command for real.
-      No fake output is generated.
-    */
-    currentProcess = await container.spawn(
-      "sh",
-      ["-c", command]
-    );
-
-    currentProcess.output.pipeTo(
-      new WritableStream({
-        write(data) {
-          print(data);
-        }
-      })
-    );
-
-    const exitCode = await currentProcess.exit;
-
-    if (exitCode !== 0) {
-      print("[process exited with code " + exitCode + "]", "err");
-    }
-
-    currentProcess = null;
-  }
-
-  async function start() {
-    try {
-      print("Starting WebContainer...", "info");
-
-      /*
-        This must be true on the deployed site.
-        Vercel needs COOP/COEP headers.
-      */
-      if (!window.crossOriginIsolated) {
-        print(
-          "ERROR: Cross-Origin Isolation is not enabled.",
-          "err"
-        );
-        print(
-          "Deploy this page with COOP/COEP headers required by WebContainer.",
-          "err"
-        );
-        return;
-      }
-
-      container = await WebContainer.boot();
-
-      /*
-        Real initial filesystem.
-      */
-      await container.mount({
-        "package.json": {
-          file: {
-            contents: JSON.stringify({
-              name: "webcontainer-project",
-              version: "1.0.0",
-              type: "module",
-              scripts: {},
-              dependencies: {}
-            }, null, 2)
-          }
-        }
-      });
-
-      print("WebContainer ready.", "info");
-      print("Node.js + npm environment is running in the browser.", "info");
-      print("", "info");
-
-      input.focus();
-
-    } catch (error) {
-      print("WebContainer error:", "err");
-      print(error.message, "err");
-      console.error(error);
-    }
-  }
 
   /*
-    Top command bar.
-  */
-  for (const command of commandList) {
-    const button = document.createElement("button");
-    button.textContent = command;
+   * XTERM TERMINAL
+   */
 
-    button.onclick = async () => {
-      if (!container) return;
-      await runCommand(command);
-      input.focus();
-    };
+  const terminal = new Terminal({
 
-    commands.appendChild(button);
-  }
+    convertEol: true,
 
-  /*
-    Custom terminal commands.
-  */
-  input.addEventListener("keydown", async (event) => {
-    if (event.key !== "Enter") return;
+    cursorBlink: true,
 
-    const command = input.value.trim();
-    input.value = "";
+    fontSize: 14,
 
-    await runCommand(command);
-    input.focus();
+    fontFamily:
+      "Consolas, Monaco, 'Courier New', monospace",
+
+    theme: {
+      background: "#0d1117",
+      foreground: "#e6edf3",
+      cursor: "#ffffff",
+      selectionBackground: "#264f78"
+    }
+
   });
 
+
+  terminal.open(terminalElement);
+
+
+  /*
+   * START WEB CONTAINER
+   */
+
+  async function start() {
+
+    try {
+
+      status.textContent =
+        "Booting WebContainer...";
+
+      terminal.writeln(
+        "\x1b[36mStarting WebContainer...\x1b[0m"
+      );
+
+
+      /*
+       * ONLY ONE INSTANCE
+       */
+
+      webcontainer =
+        await WebContainer.boot();
+
+
+      status.textContent =
+        "WebContainer ready";
+
+
+      terminal.writeln(
+        "\x1b[32m✓ WebContainer ready\x1b[0m"
+      );
+
+      terminal.writeln("");
+
+
+      /*
+       * SERVER READY
+       */
+
+      webcontainer.on(
+        "server-ready",
+        (port, url) => {
+
+          status.textContent =
+            "Server ready : " + port;
+
+          preview.style.display =
+            "flex";
+
+          previewFrame.src =
+            url;
+
+          terminal.writeln("");
+
+          terminal.writeln(
+            "\x1b[32m✓ Server ready:\x1b[0m " +
+            url
+          );
+
+        }
+      );
+
+
+      /*
+       * START REAL INTERACTIVE SHELL
+       */
+
+      shellProcess =
+        await webcontainer.spawn(
+          "jsh",
+          {
+            terminal: {
+              cols: terminal.cols,
+              rows: terminal.rows
+            }
+          }
+        );
+
+
+      /*
+       * WEBCONTAINER OUTPUT
+       * -> XTERM
+       */
+
+      shellProcess.output.pipeTo(
+        new WritableStream({
+
+          write(data) {
+
+            terminal.write(data);
+
+          }
+
+        })
+      );
+
+
+      /*
+       * XTERM INPUT
+       * -> WEBCONTAINER SHELL
+       */
+
+      shellInput =
+        shellProcess.input.getWriter();
+
+
+      terminal.onData(
+        data => {
+
+          shellInput.write(data);
+
+        }
+      );
+
+
+      /*
+       * RESIZE
+       */
+
+      terminal.onResize(
+        ({ cols, rows }) => {
+
+          if (shellProcess) {
+
+            shellProcess.resize({
+              cols,
+              rows
+            });
+
+          }
+
+        }
+      );
+
+
+      status.textContent =
+        "Ready";
+
+
+    } catch (error) {
+
+      status.textContent =
+        "Error";
+
+      terminal.writeln("");
+
+      terminal.writeln(
+        "\x1b[31mWebContainer Error:\x1b[0m"
+      );
+
+      terminal.writeln(
+        error.message
+      );
+
+      console.error(error);
+
+    }
+
+  }
+
+
+  /*
+   * SEND COMMAND
+   *
+   * IMPORTANT:
+   * command new process mein nahi ja raha.
+   * Same interactive shell mein ja raha hai.
+   */
+
+  window.sendCommand =
+    function(command) {
+
+      if (!shellInput) {
+
+        terminal.writeln(
+          "\x1b[31mShell not ready\x1b[0m"
+        );
+
+        return;
+
+      }
+
+      shellInput.write(
+        command + "\r"
+      );
+
+    };
+
+
+  /*
+   * CTRL + C
+   */
+
+  window.sendCtrlC =
+    function() {
+
+      if (!shellInput) return;
+
+      shellInput.write("\x03");
+
+    };
+
+
+  /*
+   * PREVIEW
+   */
+
+  window.togglePreview =
+    function() {
+
+      if (
+        preview.style.display === "flex"
+      ) {
+
+        preview.style.display =
+          "none";
+
+      } else {
+
+        preview.style.display =
+          "flex";
+
+      }
+
+    };
+
+
+  /*
+   * START
+   */
+
   start();
+
 </script>
 
 </body>
