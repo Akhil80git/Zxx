@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebContainer Demo</title>
+</head>
+<body>
+
+<div id="status">Starting WebContainer...</div>
+
+<script type="module">
+  import { WebContainer } from "https://esm.sh/@webcontainer/api";
+
+  const status = document.getElementById("status");
+
+  async function start() {
+    try {
+      if (!window.crossOriginIsolated) {
+        status.textContent =
+          "WebContainer requires Cross-Origin Isolation";
+        return;
+      }
+
+      const container = await WebContainer.boot();
+
+      await container.mount({
+        "package.json": {
+          file: {
+            contents: JSON.stringify({
+              name: "demo",
+              version: "1.0.0",
+              type: "module",
+              dependencies: {
+                express: "latest",
+                mongoose: "latest",
+                cors: "latest",
+                dotenv: "latest"
+              }
+            }, null, 2)
+          }
+        }
+      });
+
+      status.textContent = "Installing packages...";
+
+      const process = await container.spawn("npm", ["install"]);
+
+      process.output.pipeTo(
+        new WritableStream({
+          write(data) {
+            console.log(data);
+          }
+        })
+      );
+
+      const exitCode = await process.exit;
+
+      status.textContent =
+        exitCode === 0
+          ? "node_modules installed successfully"
+          : "npm install failed";
+
+    } catch (error) {
+      status.textContent = error.message;
+      console.error(error);
+    }
+  }
+
+  start();
+</script>
+
+</body>
+</html>
