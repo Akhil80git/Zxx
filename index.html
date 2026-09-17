@@ -1,71 +1,260 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WebContainer Demo</title>
-</head>
-<body>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>WebContainer Terminal</title>
 
-<div id="status">Starting WebContainer...</div>
+  <style>
+    *{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;background:#050505;color:#ddd;font-family:Consolas,monospace;overflow:hidden}
+    #app{height:100%;display:flex;flex-direction:column}
+
+    #commands{
+      height:48px;
+      flex-shrink:0;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      background:#111;
+      border-bottom:1px solid #292929;
+      overflow-x:auto;
+      white-space:nowrap;
+    }
+
+    #commands::-webkit-scrollbar{height:5px}
+    #commands::-webkit-scrollbar-thumb{background:#444;border-radius:10px}
+
+    button{
+      flex-shrink:0;
+      border:1px solid #333;
+      background:#191919;
+      color:#ddd;
+      padding:7px 11px;
+      border-radius:5px;
+      font:12px Consolas,monospace;
+      cursor:pointer;
+    }
+
+    button:hover{background:#292929;color:#fff}
+    button:disabled{opacity:.4;cursor:not-allowed}
+
+    #terminal{
+      flex:1;
+      overflow:auto;
+      padding:14px;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-size:14px;
+      line-height:1.5;
+    }
+
+    .line{margin:2px 0}
+    .cmd{color:#8ab4f8}
+    .err{color:#ff7070}
+    .info{color:#aaa}
+
+    #inputRow{
+      flex-shrink:0;
+      display:flex;
+      align-items:center;
+      border-top:1px solid #292929;
+      background:#0b0b0b;
+      padding:10px 12px;
+    }
+
+    #prompt{color:#6ee76e;margin-right:8px}
+    #input{
+      flex:1;
+      border:0;
+      outline:0;
+      background:transparent;
+      color:#fff;
+      font:14px Consolas,monospace;
+    }
+  </style>
+</head>
+
+<body>
+<div id="app">
+
+  <div id="commands"></div>
+
+  <div id="terminal"></div>
+
+  <div id="inputRow">
+    <span id="prompt">$</span>
+    <input id="input" autocomplete="off" spellcheck="false"
+           placeholder="Type a command..." />
+  </div>
+
+</div>
 
 <script type="module">
   import { WebContainer } from "https://esm.sh/@webcontainer/api";
 
-  const status = document.getElementById("status");
+  const terminal = document.getElementById("terminal");
+  const commands = document.getElementById("commands");
+  const input = document.getElementById("input");
+
+  let container = null;
+  let currentProcess = null;
+
+  /*
+    These are real commands.
+    Clicking one sends it to the actual WebContainer shell.
+  */
+  const commandList = [
+    "pwd",
+    "ls",
+    "ls -la",
+    "node -v",
+    "npm -v",
+    "npm init -y",
+    "npm install",
+    "npm install express",
+    "npm install mongoose",
+    "npm install cors",
+    "npm install dotenv",
+    "npm install react react-dom",
+    "npm install -D vite",
+    "npm install tailwindcss @tailwindcss/vite",
+    "npm list",
+    "npm create vite@latest my-app -- --template react",
+    "cd my-app",
+    "npm install",
+    "npm run dev"
+  ];
+
+  function print(text="", type="") {
+    const div = document.createElement("div");
+    div.className = "line " + type;
+    div.textContent = text;
+    terminal.appendChild(div);
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function printCommand(command) {
+    print("$ " + command, "cmd");
+  }
+
+  async function runCommand(command) {
+    if (!container) {
+      print("WebContainer is not ready.", "err");
+      return;
+    }
+
+    if (!command.trim()) return;
+
+    printCommand(command);
+
+    /*
+      WebContainer's shell executes the command for real.
+      No fake output is generated.
+    */
+    currentProcess = await container.spawn(
+      "sh",
+      ["-c", command]
+    );
+
+    currentProcess.output.pipeTo(
+      new WritableStream({
+        write(data) {
+          print(data);
+        }
+      })
+    );
+
+    const exitCode = await currentProcess.exit;
+
+    if (exitCode !== 0) {
+      print("[process exited with code " + exitCode + "]", "err");
+    }
+
+    currentProcess = null;
+  }
 
   async function start() {
     try {
+      print("Starting WebContainer...", "info");
+
+      /*
+        This must be true on the deployed site.
+        Vercel needs COOP/COEP headers.
+      */
       if (!window.crossOriginIsolated) {
-        status.textContent =
-          "WebContainer requires Cross-Origin Isolation";
+        print(
+          "ERROR: Cross-Origin Isolation is not enabled.",
+          "err"
+        );
+        print(
+          "Deploy this page with COOP/COEP headers required by WebContainer.",
+          "err"
+        );
         return;
       }
 
-      const container = await WebContainer.boot();
+      container = await WebContainer.boot();
 
+      /*
+        Real initial filesystem.
+      */
       await container.mount({
         "package.json": {
           file: {
             contents: JSON.stringify({
-              name: "demo",
+              name: "webcontainer-project",
               version: "1.0.0",
               type: "module",
-              dependencies: {
-                express: "latest",
-                mongoose: "latest",
-                cors: "latest",
-                dotenv: "latest"
-              }
+              scripts: {},
+              dependencies: {}
             }, null, 2)
           }
         }
       });
 
-      status.textContent = "Installing packages...";
+      print("WebContainer ready.", "info");
+      print("Node.js + npm environment is running in the browser.", "info");
+      print("", "info");
 
-      const process = await container.spawn("npm", ["install"]);
-
-      process.output.pipeTo(
-        new WritableStream({
-          write(data) {
-            console.log(data);
-          }
-        })
-      );
-
-      const exitCode = await process.exit;
-
-      status.textContent =
-        exitCode === 0
-          ? "node_modules installed successfully"
-          : "npm install failed";
+      input.focus();
 
     } catch (error) {
-      status.textContent = error.message;
+      print("WebContainer error:", "err");
+      print(error.message, "err");
       console.error(error);
     }
   }
+
+  /*
+    Top command bar.
+  */
+  for (const command of commandList) {
+    const button = document.createElement("button");
+    button.textContent = command;
+
+    button.onclick = async () => {
+      if (!container) return;
+      await runCommand(command);
+      input.focus();
+    };
+
+    commands.appendChild(button);
+  }
+
+  /*
+    Custom terminal commands.
+  */
+  input.addEventListener("keydown", async (event) => {
+    if (event.key !== "Enter") return;
+
+    const command = input.value.trim();
+    input.value = "";
+
+    await runCommand(command);
+    input.focus();
+  });
 
   start();
 </script>
